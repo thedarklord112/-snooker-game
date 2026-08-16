@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+<title>2D Pool — Full Match</title>
+<meta name="description" content="A 2D pool game in pure Canvas, with realistic physics, pockets, shots and a CPU opponent." />
+<style>
+  :root{
+    --bg-1:#0d1013;
+    --panel:#1b212a;
+    --panel-2:#232a35;
+    --border:#2e3644;
+    --text:#e7ecf3;
+    --muted:#8b96a5;
+    --accent:#f2c14e;
+    --accent-2:#e0a730;
+    --player:#4fa3ff;
+    --cpu:#ff7a5c;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0;
+    min-height:100vh;
+    background:radial-gradient(circle at 50% -10%, #232b36, #0d1013 60%);
+    color:var(--text);
+    font-family:'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+    display:flex;
+    justify-content:center;
+    padding:24px 14px 40px;
+    -webkit-user-select:none;
+    user-select:none;
+  }
+  .wrap{width:100%;max-width:1060px;}
+
+  header{text-align:center;margin-bottom:4px;}
+  header h1{font-size:26px;margin:0;letter-spacing:.02em;}
+  header p{color:var(--muted);margin:6px 0 0;font-size:13px;}
+
+  .hud{display:flex;align-items:stretch;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;}
+  .player-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:12px 16px;min-width:160px;transition:box-shadow .2s, border-color .2s;}
+  .player-card.active-turn{border-color:var(--accent);box-shadow:0 0 0 2px rgba(242,193,78,.25), 0 0 18px rgba(242,193,78,.2);}
+  .player-card-head{display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:6px;}
+  .dot{width:10px;height:10px;border-radius:50%;display:inline-block;flex:none;}
+  .dot-player{background:var(--player);}
+  .dot-cpu{background:var(--cpu);}
+  .group-label{font-size:11px;color:var(--muted);margin-bottom:6px;min-height:14px;}
+  .mini-balls{display:flex;flex-wrap:wrap;gap:4px;min-height:22px;align-content:flex-start;}
+  .mini-ball{
+    width:19px;height:19px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+    font-size:9px;font-weight:700;color:#fff;text-shadow:0 1px 1px rgba(0,0,0,.6);
+    box-shadow:inset 0 -2px 3px rgba(0,0,0,.35), inset 0 2px 2px rgba(255,255,255,.25);
+  }
+
+  .center-stats{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;flex:1;min-width:220px;}
+  .turn-indicator{font-weight:700;font-size:14px;padding:5px 16px;border-radius:20px;background:var(--panel-2);border:1px solid var(--border);white-space:nowrap;}
+  .stat-row{display:flex;gap:14px;}
+  .stat{display:flex;flex-direction:column;align-items:center;background:var(--panel-2);border:1px solid var(--border);border-radius:10px;padding:6px 14px;min-width:84px;}
+  .stat-label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);}
+  .stat-value{font-size:18px;font-weight:800;}
+
+  .btn{border:none;border-radius:10px;padding:9px 18px;font-size:13px;font-weight:700;cursor:pointer;transition:transform .15s ease, box-shadow .15s ease;font-family:inherit;}
+  .btn:hover{transform:translateY(-1px);}
+  .btn:active{transform:translateY(0);}
+  .btn-primary{background:linear-gradient(180deg,#f7d27a,#e0a730);color:#3a2a05;box-shadow:0 3px 0 #a97a1c, 0 6px 14px rgba(0,0,0,.35);}
+  .btn-secondary{background:linear-gradient(180deg,#3a4353,#262d38);color:#e7ecf3;box-shadow:0 3px 0 #171b21,0 6px 14px rgba(0,0,0,.35);}
+
+  .table-wrap{position:relative;margin-top:16px;}
+  #table{width:100%;height:auto;display:block;border-radius:18px;box-shadow:0 20px 50px rgba(0,0,0,.55);cursor:crosshair;touch-action:none;}
+
+  .power-ui{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);display:flex;align-items:center;gap:8px;background:rgba(10,12,15,.6);padding:6px 14px;border-radius:20px;backdrop-filter:blur(2px);}
+  .power-ui.hidden{display:none;}
+  .power-label{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  .power-bar-outer{width:180px;height:13px;border-radius:7px;background:#20242b;overflow:hidden;box-shadow:inset 0 1px 3px rgba(0,0,0,.6);}
+  .power-bar-fill{height:100%;width:0%;background:linear-gradient(90deg,#4caf50,#ffd23f,#f44336);background-size:180px 100%;}
+
+  .banner{position:absolute;top:14px;left:50%;transform:translate(-50%,-160%);background:rgba(20,10,10,.9);border:1px solid rgba(255,255,255,.12);color:#ffd7d7;padding:8px 18px;border-radius:20px;font-size:12.5px;font-weight:600;transition:transform .25s ease, opacity .25s ease;opacity:0;pointer-events:none;white-space:nowrap;}
+  .banner.show{transform:translate(-50%,0);opacity:1;}
+
+  .overlay{position:absolute;inset:0;background:rgba(6,8,10,.75);backdrop-filter:blur(3px);display:flex;align-items:center;justify-content:center;border-radius:18px;padding:16px;}
+  .overlay.hidden{display:none;}
+  .overlay-card{background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:26px 28px;max-width:420px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,.5);}
+  .overlay-card h2{margin:0 0 12px;font-size:22px;}
+  .overlay-card p{color:var(--muted);font-size:13.5px;line-height:1.55;margin:0 0 12px;}
+
+  .hint{text-align:center;color:var(--muted);font-size:12px;margin-top:12px;}
+  footer{text-align:center;color:var(--muted);font-size:11px;margin-top:18px;opacity:.7;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎱 2D Pool</h1>
+    <p>Custom physics engine in Canvas — no external libraries</p>
+  </header>
+
+  <div class="hud">
+    <div class="player-card" id="cardPlayer">
+      <div class="player-card-head"><span class="dot dot-player"></span><span>Player</span></div>
+      <div class="group-label" id="playerGroup">Group: undecided</div>
+      <div class="mini-balls" id="playerBalls"></div>
+    </div>
+
+    <div class="center-stats">
+      <div class="turn-indicator" id="turnIndicator">Turn: Player</div>
+      <div class="stat-row">
+        <div class="stat"><span class="stat-label">Shots</span><span class="stat-value" id="shotCount">0</span></div>
+        <div class="stat"><span class="stat-label">Pocketed</span><span class="stat-value"><span id="pocketedCount">0</span>/15</span></div>
+      </div>
+      <button id="restartBtn" class="btn btn-secondary">Restart Match</button>
+    </div>
+
+    <div class="player-card" id="cardCpu">
+      <div class="player-card-head"><span class="dot dot-cpu"></span><span>CPU</span></div>
+      <div class="group-label" id="cpuGroup">Group: undecided</div>
+      <div class="mini-balls" id="cpuBalls"></div>
+    </div>
+  </div>
+
+  <div class="table-wrap">
+    <canvas id="table" width="1020" height="560"></canvas>
+
+    <div class="power-ui hidden" id="powerUi">
+      <span class="power-label">Power</span>
+      <div class="power-bar-outer"><div class="power-bar-fill" id="powerFill"></div></div>
+    </div>
+
+    <div class="banner" id="foulBanner"></div>
+
+    <div class="overlay" id="startOverlay">
+      <div class="overlay-card">
+        <h2>🎱 2D Pool</h2>
+        <p>Click near the cue ball and drag: the shot fires in the <strong>opposite</strong> direction of the drag (like pulling the cue stick back), and the power depends on the drag distance.</p>
+        <p>Pot your balls (solids 1–7 or stripes 9–15) and finish with the 8-ball to win. If the cue ball falls in a pocket, it returns to its starting position.</p>
+        <button id="startBtn" class="btn btn-primary">Start Match</button>
+      </div>
+    </div>
+
+    <div class="overlay hidden" id="endOverlay">
+      <div class="overlay-card">
+        <h2 id="endTitle"></h2>
+        <p id="endMsg"></p>
+        <button id="playAgainBtn" class="btn btn-primary">Play Again</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint">Tip: while any ball is moving, you can't shoot again. The CPU opponent plays automatically on its turn.</p>
+
+  <footer>Built with HTML5 Canvas and plain JavaScript — elastic collision, friction and restitution physics implemented from scratch.</footer>
+</div>
+
+<script>
+'use strict';
+
+/* ======================================================================
+   TABLE AND PHYSICS CONSTANTS
+   ====================================================================== */
+const CANVAS_W = 1020, CANVAS_H = 560, RAIL = 32;
+const R = 14; // radius of every ball (same mass and radius for all)
+
+const feltRect = { x: RAIL, y: RAIL, w: CANVAS_W - 2 * RAIL, h: CANVAS_H - 2 * RAIL };
+// valid position bounds for the CENTER of any ball
+const PLAY = {
+  left: feltRect.x + R,
+  right: feltRect.x + feltRect.w - R,
+  top: feltRect.y + R,
+  bottom: feltRect.y + feltRect.h - R
+};
+
+const POCKETS = [
+  { x: feltRect.x, y: feltRect.y },                                   // top-left corner
+  { x: feltRect.x + feltRect.w / 2, y: feltRect.y },                  // top middle
+  { x: feltRect.x + feltRect.w, y: feltRect.y },                      // top-right corner
+  { x: feltRect.x, y: feltRect.y + feltRect.h },                      // bottom-left corner
+  { x: feltRect.x + feltRect.w / 2, y: feltRect.y + feltRect.h },     // bottom middle
+  { x: feltRect.x + feltRect.w, y: feltRect.y + feltRect.h }          // bottom-right corner
+];
+const POCKET_CAPTURE_R = R * 1.65;
+const POCKET_VISUAL_R = R * 1.5;
+
+const HEAD_SPOT = { x: feltRect.x + feltRect.w * 0.25, y: feltRect.y + feltRect.h / 2 };
+
+const RESTITUTION_WALL = 0.9;   // coefficient of restitution on the cushions
+const FRICTION = 320;           // rolling-friction deceleration (px/s^2)
+const MIN_SPEED = 6;            // minimum speed threshold — below this the ball stops
+const MAX_SHOT_SPEED = 1100;    // cue ball speed at maximum power (px/s)
+const MAX_DRAG = 170;           // drag distance (px) equal to 100% power
+const SUBSTEP_UNIT = R * 0.2;   // max displacement per substep -> avoids tunneling
+const MAX_SUBSTEPS = 120;
+const CPU_SKILL = 0.72;         // 0..1 — CPU opponent accuracy
+
+const COLORS = {
+  1: '#e8c547', 2: '#2864c9', 3: '#d1352b', 4: '#6b3fa0',
+  5: '#e07a1f', 6: '#2c8a4b', 7: '#7a3b2e', 8: '#1c1c1e'
+};
+
+/* ======================================================================
+   GAME STATE
+   ====================================================================== */
+let balls = [];
+let cueBall = null;
+let turn = 'player';                 // 'player' | 'cpu'
+let phase = 'menu';                  // 'menu'|'aiming'|'moving'|'cpu-thinking'|'cpu-aiming'|'gameover'
+let groups = { player: null, cpu: null }; // 'solids' | 'stripes' | null
+let groupsAssigned = false;
+let shotCount = 0;
+let pocketedCount = 0;
+let shotState = { firstContact: null, potted: [], cueScratched: false, shooter: null };
+
+let dragging = false;
+let currentAimDir = { x: 1, y: 0 };
+let currentPowerFrac = 0;
+let cpuDir = null;
+let cpuPowerFrac = 0;
+let roundToken = 0;
+let lastT = null;
+
+/* ======================================================================
+   UTILITIES
+   ====================================================================== */
+function sub(a, b) { return { x: a.x - b.x, y: a.y - b.y }; }
+function dot(a, b) { return a.x * b.x + a.y * b.y; }
+function len(a) { return Math.hypot(a.x, a.y); }
+function normalize(a) { const l = len(a) || 1; return { x: a.x / l, y: a.y / l }; }
+function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
+function shuffle(arr) {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+function hexToRgb(hex) {
+  const n = parseInt(hex.slice(1), 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbToHex(r, g, b) {
+  return '#' + [r, g, b].map(v => clamp(Math.round(v), 0, 255).toString(16).padStart(2, '0')).join('');
+}
+function lighten(hex, amt) {
+  const { r, g, b } = hexToRgb(hex);
+  return rgbToHex(r + (255 - r) * amt, g + (255 - g) * amt, b + (255 - b) * amt);
+}
+function darken(hex, amt) {
+  const { r, g, b } = hexToRgb(hex);
+  return rgbToHex(r * (1 - amt), g * (1 - amt), b * (1 - amt));
+}
+
+/* ======================================================================
+   BALL RACK SETUP (TRIANGLE WITHOUT OVERLAP)
+   ====================================================================== */
+function buildRackNumbers() {
+  // 1 is always at the apex, 8 is always at the center of row 3, one ball
+  // of each group goes in the two back corners — the rest is shuffled.
+  const solids = shuffle([2, 3, 4, 5, 6, 7]);
+  const stripes = shuffle([9, 10, 11, 12, 13, 14, 15]);
+  const cornerSolid = solids.pop();
+  const cornerStripe = stripes.pop();
+  const rest = shuffle(solids.concat(stripes));
+
+  const arr = new Array(15);
+  arr[0] = 1;   // apex
+  arr[4] = 8;   // center of row 3 (indices 3,4,5)
+  if (Math.random() < 0.5) { arr[10] = cornerSolid; arr[14] = cornerStripe; }
+  else { arr[10] = cornerStripe; arr[14] = cornerSolid; }
+
+  const remainingSlots = [1, 2, 3, 5, 6, 7, 8, 9, 11, 12, 13];
+  remainingSlots.forEach((slot, i) => { arr[slot] = rest[i]; });
+  return arr;
+}
+
+function setupBalls() {
+  balls = [];
+  cueBall = {
+    num: 0, isCue: true, isStripe: false,
+    x: HEAD_SPOT.x, y: HEAD_SPOT.y, vx: 0, vy: 0,
+    active: true, potted: false, pottedBy: null, spin: 0, color: '#ffffff'
+  };
+  balls.push(cueBall);
+
+  const order = buildRackNumbers();
+  const apexX = feltRect.x + feltRect.w * 0.72;
+  const centerY = feltRect.y + feltRect.h / 2;
+  const dxRow = R * Math.sqrt(3); // rows touching exactly (equilateral triangle of balls)
+
+  let idx = 0;
+  for (let row = 0; row < 5; row++) {
+    const x = apexX + row * dxRow;
+    const startY = centerY - row * R;
+    for (let k = 0; k <= row; k++) {
+      const num = order[idx++];
+      const isStripe = num >= 9;
+      const baseNum = isStripe ? num - 8 : num;
+      balls.push({
+        num, isCue: false, isStripe,
+        x, y: startY + k * 2 * R,
+        vx: 0, vy: 0, active: true, potted: false, pottedBy: null, spin: 0,
+        color: COLORS[baseNum]
+      });
+    }
+  }
+}
+
+function isOverlappingAny(ball) {
+  return balls.some(o => o !== ball && o.active && dist(o, ball) < 2 * R + 0.5);
+}
+
+function resetCueBall() {
+  cueBall.x = HEAD_SPOT.x;
+  cueBall.y = HEAD_SPOT.y;
+  cueBall.vx = 0; cueBall.vy = 0;
+  cueBall.active = true;
+  let tries = 0;
+  while (isOverlappingAny(cueBall) && tries < 60) {
+    cueBall.x = PLAY.left + Math.random() * (PLAY.right - PLAY.left);
+    cueBall.y = PLAY.top + Math.random() * (PLAY.bottom - PLAY.top);
+    tries++;
+  }
+}
+
+/* ======================================================================
+   PHYSICS
+   ====================================================================== */
+function updatePhysics(dt) {
+  let maxSpeed = 0;
+  for (const b of balls) {
+    if (!b.active) continue;
+    const s = Math.hypot(b.vx, b.vy);
+    if (s > maxSpeed) maxSpeed = s;
+  }
+  const travel = maxSpeed * dt;
+  // enough substeps that the per-step displacement stays small enough to
+  // never "jump" over another ball (no tunneling)
+  const steps = Math.min(MAX_SUBSTEPS, Math.max(1, Math.ceil(travel / SUBSTEP_UNIT)));
+  const sdt = dt / steps;
+  for (let i = 0; i < steps; i++) substep(sdt);
+}
+
+function substep(dt) {
+  // 1) integrate position
+  for (const b of balls) {
+    if (!b.active) continue;
+    b.x += b.vx * dt;
+    b.y += b.vy * dt;
+  }
+
+  // 2) ball-ball collisions (positional resolution BEFORE the impulse)
+  for (let i = 0; i < balls.length; i++) {
+    const a = balls[i];
+    if (!a.active) continue;
+    for (let j = i + 1; j < balls.length; j++) {
+      const b = balls[j];
+      if (!b.active) continue;
+      resolveBallCollision(a, b);
+    }
+  }
+
+  // 3) pockets and cushions
+  for (const b of balls) {
+    if (!b.active) continue;
+    const pocket = findCapturingPocket(b);
+    if (pocket) { onBallPotted(b); continue; }
+    resolveWallCollision(b);
+  }
+
+  // 4) rolling friction
+  for (const b of balls) {
+    if (!b.active) continue;
+    applyFriction(b, dt);
+    b.spin += b.vx * dt * 0.05;
+  }
+}
+
+function resolveBallCollision(a, b) {
+  let dx = b.x - a.x, dy = b.y - a.y;
+  let d = Math.hypot(dx, dy);
+  const minDist = 2 * R;
+  if (d >= minDist) return;
+
+  if (d < 1e-6) { // balls exactly overlapping (degenerate case) — separate in a random direction
+    dx = Math.random() - 0.5; dy = Math.random() - 0.5;
+    d = Math.hypot(dx, dy) || 1;
+  }
+  const nx = dx / d, ny = dy / d;
+
+  // --- positional resolution of the overlap BEFORE applying any impulse ---
+  const overlap = minDist - d;
+  const corr = overlap / 2 + 0.01;
+  a.x -= nx * corr; a.y -= ny * corr;
+  b.x += nx * corr; b.y += ny * corr;
+
+  // --- decomposition into normal and tangential components ---
+  const tx = -ny, ty = nx;
+  const aN = a.vx * nx + a.vy * ny, aT = a.vx * tx + a.vy * ty;
+  const bN = b.vx * nx + b.vy * ny, bT = b.vx * tx + b.vy * ty;
+
+  // only resolve the impulse if the balls are approaching along the normal
+  if (aN - bN > 0) {
+    // elastic collision with equal masses: the normal components are
+    // swapped (conserves linear momentum and kinetic energy); each ball's
+    // tangential component is left unaffected by the collision.
+    a.vx = bN * nx + aT * tx; a.vy = bN * ny + aT * ty;
+    b.vx = aN * nx + bT * tx; b.vy = aN * ny + bT * ty;
+
+    if (shotState.firstContact === null) {
+      if (a.isCue && !b.isCue) shotState.firstContact = b.num;
+      else if (b.isCue && !a.isCue) shotState.firstContact = a.num;
+    }
+  }
+}
+
+function resolveWallCollision(b) {
+  if (b.x < PLAY.left) { b.x = PLAY.left; b.vx = -b.vx * RESTITUTION_WALL; }
+  else if (b.x > PLAY.right) { b.x = PLAY.right; b.vx = -b.vx * RESTITUTION_WALL; }
+  if (b.y < PLAY.top) { b.y = PLAY.top; b.vy = -b.vy * RESTITUTION_WALL; }
+  else if (b.y > PLAY.bottom) { b.y = PLAY.bottom; b.vy = -b.vy * RESTITUTION_WALL; }
+}
+
+function findCapturingPocket(b) {
+  for (const p of POCKETS) if (dist(b, p) < POCKET_CAPTURE_R) return p;
+  return null;
+}
+
+function applyFriction(b, dt) {
+  const speed = Math.hypot(b.vx, b.vy);
+  if (speed <= 0) return;
+  const newSpeed = speed - FRICTION * dt;
+  if (newSpeed <= MIN_SPEED) { b.vx = 0; b.vy = 0; }
+  else { const k = newSpeed / speed; b.vx *= k; b.vy *= k; }
+}
+
+function allBallsStopped() {
+  return balls.every(b => !b.active || (b.vx === 0 && b.vy === 0));
+}
+
+function onBallPotted(b) {
+  b.active = false; b.vx = 0; b.vy = 0;
+  if (b.isCue) {
+    shotState.cueScratched = true;
+  } else {
+    b.potted = true;
+    b.pottedBy = turn;
+    shotState.potted.push(b.num);
+    pocketedCount++;
+  }
+  updateHud();
+}
+
+/* ======================================================================
+   TURNS / MATCH RULES (American 8-ball pool style)
+   ====================================================================== */
+function activeObjectBalls() { return balls.filter(b => !b.isCue && b.active); }
+function ballsOfType(type) { return balls.filter(b => !b.isCue && (type === 'solids' ? b.num <= 7 : b.num >= 9)); }
+function opponentOf(p) { return p === 'player' ? 'cpu' : 'player'; }
+
+function applyShot(dir, powerFrac) {
+  const speed = powerFrac * MAX_SHOT_SPEED;
+  cueBall.vx = dir.x * speed;
+  cueBall.vy = dir.y * speed;
+  shotCount++;
+  shotState = { firstContact: null, potted: [], cueScratched: false, shooter: turn };
+  phase = 'moving';
+  hidePowerUi();
+  updateHud();
+}
+
+function resolveShotOutcome() {
+  const shooter = shotState.shooter;
+  const opponent = opponentOf(shooter);
+  const potted = shotState.potted.slice();
+  const scratched = shotState.cueScratched;
+  const firstContact = shotState.firstContact;
+
+  // assign groups (solids/stripes) on the first legal ball potted
+  if (!groupsAssigned) {
+    const nonEight = potted.filter(n => n !== 8);
+    if (nonEight.length > 0) {
+      const type = nonEight[0] <= 7 ? 'solids' : 'stripes';
+      groups[shooter] = type;
+      groups[opponent] = type === 'solids' ? 'stripes' : 'solids';
+      groupsAssigned = true;
+      updateHud();
+    }
+  }
+
+  // 8-ball potted -> game over
+  if (potted.includes(8)) {
+    const myType = groups[shooter];
+    const remaining = myType ? ballsOfType(myType).filter(b => !b.potted).length : Infinity;
+    const legalContact = firstContact === 8;
+    if (myType && remaining === 0 && !scratched && legalContact) {
+      endGame(shooter, shooter === 'player' ? 'You potted the 8-ball correctly and won the match!' : 'The CPU potted the 8-ball correctly and won the match.');
+    } else {
+      endGame(opponent, (shooter === 'player' ? 'You' : 'The CPU') + ' potted the 8-ball at the wrong time (or on a foul) and lost the match.');
+    }
+    return;
+  }
+
+  // determine foul: cue ball potted, or an illegal first contact
+  let foul = scratched;
+  if (!foul) {
+    if (firstContact === null) {
+      foul = true; // didn't touch any ball
+    } else if (groupsAssigned) {
+      const myType = groups[shooter];
+      const remainingMine = ballsOfType(myType).filter(b => !b.potted).length;
+      if (remainingMine > 0) {
+        const fcType = firstContact <= 7 ? 'solids' : 'stripes';
+        if (fcType !== myType) foul = true;
+      } else if (firstContact !== 8) {
+        foul = true; // should have aimed at the 8-ball
+      }
+    }
+  }
+
+  // keep the turn if a ball from the shooter's own group was potted (or open table) without a foul
+  let continueTurn = false;
+  if (!foul && potted.length > 0) {
+    if (!groupsAssigned) continueTurn = true;
+    else {
+      const myType = groups[shooter];
+      const mine = potted.filter(n => (myType === 'solids' ? n <= 7 : n >= 9));
+      if (mine.length > 0) continueTurn = true;
+    }
+  }
+
+  if (scratched) resetCueBall();
+
+  if (foul) showBanner(scratched ? 'Foul! Cue ball potted — table goes to the opponent.' : 'Foul! Wrong ball (or none) hit first.');
+  else if (potted.length > 0) showBanner(continueTurn ? 'Ball potted! Shoot again.' : 'Ball potted, but the turn passes.');
+
+  prepareNextShot(continueTurn ? shooter : opponent);
+}
+
+function endGame(winner, reasonText) {
+  phase = 'gameover';
+  endTitleEl.textContent = winner === 'player' ? '🏆 You win!' : '🤖 CPU wins!';
+  endMsgEl.textContent = reasonText;
+  endOverlay.classList.remove('hidden');
+  updateHud();
+}
+
+function prepareNextShot(nextTurn) {
+  turn = nextTurn;
+  updateHud();
+  if (turn === 'player') {
+    phase = 'aiming';
+  } else {
+    phase = 'cpu-thinking';
+    scheduleCpuTurn();
+  }
+}
+
+/* ======================================================================
+   OPPONENT AI (CPU)
+   ====================================================================== */
+function ghostBallPos(ballPos, pocketPos) {
+  const d = sub(ballPos, pocketPos);
+  const l = len(d) || 1;
+  return { x: ballPos.x + (d.x / l) * (2 * R), y: ballPos.y + (d.y / l) * (2 * R) };
+}
+
+function isPathClear(fromPos, toPos, excludeBalls) {
+  const d = sub(toPos, fromPos);
+  const L = len(d);
+  if (L < 1e-6) return true;
+  const ux = d.x / L, uy = d.y / L;
+  for (const b of balls) {
+    if (!b.active) continue;
+    if (excludeBalls.includes(b)) continue;
+    const ocx = b.x - fromPos.x, ocy = b.y - fromPos.y;
+    const proj = ocx * ux + ocy * uy;
+    if (proj <= 0 || proj >= L) continue;
+    const cx = fromPos.x + ux * proj, cy = fromPos.y + uy * proj;
+    const d2 = Math.hypot(b.x - cx, b.y - cy);
+    if (d2 < 2 * R - 0.5) return false;
+  }
+  return true;
+}
+
+function cpuChooseShot() {
+  const myGroup = groups.cpu;
+  let candidates;
+  if (myGroup) {
+    candidates = ballsOfType(myGroup).filter(b => b.active);
+    if (candidates.length === 0) {
+      const eight = balls.find(b => b.num === 8);
+      candidates = (eight && eight.active) ? [eight] : [];
+    }
+  } else {
+    candidates = activeObjectBalls().filter(b => b.num !== 8);
+    if (candidates.length === 0) candidates = activeObjectBalls();
+  }
+
+  let best = null;
+  for (const ball of candidates) {
+    for (const pocket of POCKETS) {
+      const ghost = ghostBallPos(ball, pocket);
+      if (ghost.x < PLAY.left - R || ghost.x > PLAY.right + R || ghost.y < PLAY.top - R || ghost.y > PLAY.bottom + R) continue;
+
+      const aimDir = normalize(sub(ghost, cueBall));
+      const objDir = normalize(sub(pocket, ball));
+      const feasibility = dot(aimDir, objDir); // 1 = straight on, <=0 impossible
+      if (feasibility < 0.2) continue;
+
+      if (!isPathClear(cueBall, ghost, [cueBall, ball])) continue;
+      if (!isPathClear(ball, pocket, [cueBall, ball])) continue;
+
+      const dist1 = dist(cueBall, ghost), dist2 = dist(ball, pocket);
+      const score = feasibility * 400 - (dist1 + dist2) * 0.15;
+      if (!best || score > best.score) best = { ball, pocket, ghost, aimDir, score, dist1, dist2 };
+    }
+  }
+  return best;
+}
+
+function computeCpuAimAndPower(best) {
+  let dir, power;
+  if (best) {
+    const baseAngle = Math.atan2(best.aimDir.y, best.aimDir.x);
+    const err = (1 - CPU_SKILL) * 0.1;
+    const angle = baseAngle + (Math.random() * 2 - 1) * err;
+    dir = { x: Math.cos(angle), y: Math.sin(angle) };
+    power = clamp(((best.dist1 + best.dist2) / 900) * (0.85 + Math.random() * 0.3), 0.35, 1);
+  } else {
+    const targets = activeObjectBalls();
+    const t = targets.length ? targets[Math.floor(Math.random() * targets.length)] : null;
+    dir = t ? normalize(sub(t, cueBall)) : { x: 1, y: 0 };
+    power = 0.5;
+  }
+  return { dir, power };
+}
+
+function scheduleCpuTurn() {
+  const token = ++roundToken;
+  cpuDir = null; cpuPowerFrac = 0;
+  setTimeout(() => {
+    if (token !== roundToken || phase !== 'cpu-thinking') return;
+    const best = cpuChooseShot();
+    const computed = computeCpuAimAndPower(best);
+    cpuDir = computed.dir; cpuPowerFrac = computed.power;
+    phase = 'cpu-aiming';
+    updatePowerUi(cpuPowerFrac);
+
+    setTimeout(() => {
+      if (token !== roundToken || phase !== 'cpu-aiming') return;
+      applyShot(cpuDir, cpuPowerFrac);
+      cpuDir = null;
+    }, 650 + Math.random() * 350);
+  }, 850 + Math.random() * 450);
+}
+
+/* ======================================================================
+   PLAYER INPUT (aim and shoot)
+   ====================================================================== */
+function canShoot() { return turn === 'player' && phase === 'aiming'; }
+
+function getCanvasPos(e) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+
+function updateAimFromPointer(pos) {
+  const pullX = pos.x - cueBall.x, pullY = pos.y - cueBall.y;
+  const pullDist = Math.hypot(pullX, pullY);
+  if (pullDist < 1e-3) {
+    currentAimDir = { x: 1, y: 0 };
+    currentPowerFrac = 0;
+  } else {
+    // the shot fires in the direction OPPOSITE the drag, like pulling the cue stick back
+    currentAimDir = { x: -pullX / pullDist, y: -pullY / pullDist };
+    currentPowerFrac = clamp(pullDist / MAX_DRAG, 0, 1);
+  }
+  updatePowerUi(currentPowerFrac);
+}
+
+function onPointerDown(e) {
+  if (!canShoot()) return;
+  const pos = getCanvasPos(e);
+  if (dist(pos, cueBall) > 120) return; // must start near the cue ball
+  dragging = true;
+  updateAimFromPointer(pos);
+}
+function onPointerMove(e) {
+  if (!dragging) return;
+  updateAimFromPointer(getCanvasPos(e));
+}
+function onPointerUp() {
+  if (!dragging) return;
+  dragging = false;
+  if (canShoot() && currentPowerFrac >= 0.04) {
+    applyShot(currentAimDir, currentPowerFrac);
+  } else {
+    hidePowerUi();
+  }
+}
+
+/* ======================================================================
+   RENDERING
+   ====================================================================== */
+function roundRect(c, x, y, w, h, r) {
+  c.beginPath();
+  c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r);
+  c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r);
+  c.arcTo(x, y, x + w, y, r);
+  c.closePath();
+}
+
+function drawTable() {
+  const woodGrad = ctx.createLinearGradient(0, 0, CANVAS_W, CANVAS_H);
+  woodGrad.addColorStop(0, '#8a5a34');
+  woodGrad.addColorStop(0.5, '#6b4423');
+  woodGrad.addColorStop(1, '#5a3819');
+  roundRect(ctx, 0, 0, CANVAS_W, CANVAS_H, 18);
+  ctx.fillStyle = woodGrad;
+  ctx.fill();
+
+  roundRect(ctx, 6, 6, CANVAS_W - 12, CANVAS_H - 12, 14);
+  ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+  ctx.lineWidth = 6;
+  ctx.stroke();
+
+  const feltGrad = ctx.createRadialGradient(
+    feltRect.x + feltRect.w / 2, feltRect.y + feltRect.h / 2, 40,
+    feltRect.x + feltRect.w / 2, feltRect.y + feltRect.h / 2, feltRect.w * 0.75
+  );
+  feltGrad.addColorStop(0, '#1f8a4c');
+  feltGrad.addColorStop(1, '#146536');
+  roundRect(ctx, feltRect.x, feltRect.y, feltRect.w, feltRect.h, 10);
+  ctx.fillStyle = feltGrad;
+  ctx.fill();
+
+  roundRect(ctx, feltRect.x + 6, feltRect.y + 6, feltRect.w - 12, feltRect.h - 12, 6);
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+
+  for (const p of POCKETS) {
+    const pg = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, POCKET_VISUAL_R);
+    pg.addColorStop(0, '#000000');
+    pg.addColorStop(0.7, '#0a0a0a');
+    pg.addColorStop(1, '#241a12');
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, POCKET_VISUAL_R, 0, Math.PI * 2);
+    ctx.fillStyle = pg;
+    ctx.fill();
+  }
+}
+
+function drawBall(b) {
+  // shadow on the felt (adds depth / 3D effect)
+  ctx.beginPath();
+  ctx.ellipse(b.x + 3, b.y + 5, R * 0.95, R * 0.55, 0, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(0,0,0,0.28)';
+  ctx.fill();
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, R, 0, Math.PI * 2);
+  ctx.clip();
+
+  const grad = ctx.createRadialGradient(b.x - R * 0.35, b.y - R * 0.4, R * 0.1, b.x, b.y, R * 1.2);
+  if (b.isCue) {
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(1, '#d7dbe0');
+  } else {
+    grad.addColorStop(0, lighten(b.color, 0.55));
+    grad.addColorStop(0.5, b.color);
+    grad.addColorStop(1, darken(b.color, 0.35));
+  }
+  ctx.fillStyle = grad;
+  ctx.fillRect(b.x - R, b.y - R, R * 2, R * 2);
+
+  if (b.isStripe) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.spin);
+    ctx.fillStyle = '#f4f1ea';
+    ctx.fillRect(-R, -R * 0.42, R * 2, R * 0.84);
+    ctx.restore();
+  }
+
+  if (!b.isCue) {
+    ctx.save();
+    ctx.translate(b.x, b.y);
+    ctx.rotate(b.spin);
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.55, 0, Math.PI * 2);
+    ctx.fillStyle = '#f4f1ea';
+    ctx.fill();
+    ctx.fillStyle = '#20232a';
+    ctx.font = 'bold ' + (R * 0.62) + 'px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(b.num), 0, R * 0.04);
+    ctx.restore();
+  }
+
+  ctx.beginPath();
+  ctx.ellipse(b.x - R * 0.35, b.y - R * 0.4, R * 0.32, R * 0.2, -0.5, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255,255,255,0.55)';
+  ctx.fill();
+
+  ctx.restore();
+
+  ctx.beginPath();
+  ctx.arc(b.x, b.y, R, 0, Math.PI * 2);
+  ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+}
+
+function castAimRay(origin, dir, maxLen) {
+  let bestT = maxLen;
+  let hitBall = null;
+
+  if (dir.x > 1e-6) { const t = (PLAY.right - origin.x) / dir.x; if (t > 0 && t < bestT) bestT = t; }
+  else if (dir.x < -1e-6) { const t = (PLAY.left - origin.x) / dir.x; if (t > 0 && t < bestT) bestT = t; }
+  if (dir.y > 1e-6) { const t = (PLAY.bottom - origin.y) / dir.y; if (t > 0 && t < bestT) bestT = t; }
+  else if (dir.y < -1e-6) { const t = (PLAY.top - origin.y) / dir.y; if (t > 0 && t < bestT) bestT = t; }
+
+  for (const b of balls) {
+    if (!b.active || b === cueBall) continue;
+    const ocx = origin.x - b.x, ocy = origin.y - b.y;
+    const bcoef = 2 * (ocx * dir.x + ocy * dir.y);
+    const c = ocx * ocx + ocy * ocy - (2 * R) * (2 * R);
+    const disc = bcoef * bcoef - 4 * c;
+    if (disc < 0) continue;
+    const sq = Math.sqrt(disc);
+    const t1 = (-bcoef - sq) / 2;
+    if (t1 > 0.01 && t1 < bestT) { bestT = t1; hitBall = b; }
+  }
+  return { point: { x: origin.x + dir.x * bestT, y: origin.y + dir.y * bestT }, hitBall };
+}
+
+function drawAimAndStick(dir, powerFrac, color) {
+  if (!cueBall.active) return;
+  const origin = { x: cueBall.x, y: cueBall.y };
+  const cast = castAimRay(origin, dir, 2000);
+
+  ctx.save();
+  ctx.setLineDash([6, 6]);
+  ctx.strokeStyle = color;
+  ctx.globalAlpha = 0.85;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(origin.x + dir.x * (R + 4), origin.y + dir.y * (R + 4));
+  ctx.lineTo(cast.point.x, cast.point.y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.globalAlpha = 1;
+
+  if (cast.hitBall) {
+    ctx.beginPath();
+    ctx.arc(cast.point.x, cast.point.y, R, 0, Math.PI * 2);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.7;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+
+  const pull = powerFrac * 60;
+  const gap = R + 16 + pull;
+  const stickLen = 180;
+  const sx = origin.x - dir.x * gap, sy = origin.y - dir.y * gap;
+  const ex = origin.x - dir.x * (gap + stickLen), ey = origin.y - dir.y * (gap + stickLen);
+  ctx.lineCap = 'round';
+  const stickGrad = ctx.createLinearGradient(sx, sy, ex, ey);
+  stickGrad.addColorStop(0, '#d9a86c');
+  stickGrad.addColorStop(1, '#6b4429');
+  ctx.strokeStyle = stickGrad;
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+function draw() {
+  drawTable();
+  for (const b of balls) if (b.active) drawBall(b);
+  if (dragging && canShoot()) drawAimAndStick(currentAimDir, currentPowerFrac, 'rgba(255,255,255,0.9)');
+  else if (phase === 'cpu-aiming' && cpuDir) drawAimAndStick(cpuDir, cpuPowerFrac, 'rgba(255,120,100,0.9)');
+}
+
+/* ======================================================================
+   HUD
+   ====================================================================== */
+function renderMiniBalls(container, who) {
+  container.innerHTML = '';
+  balls.filter(b => b.potted && b.pottedBy === who)
+    .sort((a, b) => a.num - b.num)
+    .forEach(b => {
+      const d = document.createElement('div');
+      d.className = 'mini-ball';
+      d.style.background = b.color;
+      d.textContent = String(b.num);
+      container.appendChild(d);
+    });
+}
+
+function updateHud() {
+  shotCountEl.textContent = String(shotCount);
+  pocketedCountEl.textContent = String(pocketedCount);
+  turnIndicatorEl.textContent = phase === 'gameover' ? 'Game Over' : ('Turn: ' + (turn === 'player' ? 'Player' : 'CPU'));
+  cardPlayerEl.classList.toggle('active-turn', turn === 'player' && phase !== 'gameover' && phase !== 'menu');
+  cardCpuEl.classList.toggle('active-turn', turn === 'cpu' && phase !== 'gameover' && phase !== 'menu');
+  playerGroupEl.textContent = groups.player ? ('Group: ' + (groups.player === 'solids' ? 'Solids (1–7)' : 'Stripes (9–15)')) : 'Group: undecided';
+  cpuGroupEl.textContent = groups.cpu ? ('Group: ' + (groups.cpu === 'solids' ? 'Solids (1–7)' : 'Stripes (9–15)')) : 'Group: undecided';
+  renderMiniBalls(playerBallsEl, 'player');
+  renderMiniBalls(cpuBallsEl, 'cpu');
+}
+
+let bannerTimeout = null;
+function showBanner(text) {
+  foulBannerEl.textContent = text;
+  foulBannerEl.classList.add('show');
+  clearTimeout(bannerTimeout);
+  bannerTimeout = setTimeout(() => foulBannerEl.classList.remove('show'), 2400);
+}
+
+function updatePowerUi(frac) {
+  powerUiEl.classList.remove('hidden');
+  powerFillEl.style.width = (frac * 100) + '%';
+}
+function hidePowerUi() {
+  powerUiEl.classList.add('hidden');
+  powerFillEl.style.width = '0%';
+}
+
+// Read-only debug utility (does not affect the game) — useful for
+// inspecting internal state from the browser console.
+function debugState() {
+  return {
+    phase, turn, shotCount, pocketedCount,
+    groups: { player: groups.player, cpu: groups.cpu },
+    balls: balls.map(b => ({
+      num: b.num, isCue: b.isCue, x: b.x, y: b.y, vx: b.vx, vy: b.vy,
+      active: b.active, potted: b.potted
+    }))
+  };
+}
+
+/* ======================================================================
+   MAIN LOOP
+   ====================================================================== */
+function frame(t) {
+  if (lastT === null) lastT = t;
+  let dt = (t - lastT) / 1000;
+  lastT = t;
+  dt = Math.min(dt, 1 / 30); // avoids large jumps after the tab was backgrounded
+
+  if (phase === 'moving') {
+    updatePhysics(dt);
+    if (allBallsStopped()) resolveShotOutcome();
+  }
+
+  draw();
+  requestAnimationFrame(frame);
+}
+
+/* ======================================================================
+   MATCH CONTROL (start / restart)
+   ====================================================================== */
+function newGame() {
+  roundToken++; // invalidates any pending CPU timeouts
+  setupBalls();
+  groups = { player: null, cpu: null };
+  groupsAssigned = false;
+  shotCount = 0;
+  pocketedCount = 0;
+  shotState = { firstContact: null, potted: [], cueScratched: false, shooter: null };
+  dragging = false;
+  hidePowerUi();
+  endOverlay.classList.add('hidden');
+
+  turn = Math.random() < 0.5 ? 'player' : 'cpu';
+  if (turn === 'player') {
+    phase = 'aiming';
+    updateHud();
+  } else {
+    phase = 'cpu-thinking';
+    updateHud();
+    scheduleCpuTurn();
+  }
+}
+
+/* ======================================================================
+   DOM REFERENCES AND EVENTS
+   ====================================================================== */
+const canvas = document.getElementById('table');
+const ctx = canvas.getContext('2d');
+
+const shotCountEl = document.getElementById('shotCount');
+const pocketedCountEl = document.getElementById('pocketedCount');
+const turnIndicatorEl = document.getElementById('turnIndicator');
+const cardPlayerEl = document.getElementById('cardPlayer');
+const cardCpuEl = document.getElementById('cardCpu');
+const playerGroupEl = document.getElementById('playerGroup');
+const cpuGroupEl = document.getElementById('cpuGroup');
+const playerBallsEl = document.getElementById('playerBalls');
+const cpuBallsEl = document.getElementById('cpuBalls');
+const restartBtn = document.getElementById('restartBtn');
+const startBtn = document.getElementById('startBtn');
+const startOverlay = document.getElementById('startOverlay');
+const endOverlay = document.getElementById('endOverlay');
+const endTitleEl = document.getElementById('endTitle');
+const endMsgEl = document.getElementById('endMsg');
+const playAgainBtn = document.getElementById('playAgainBtn');
+const powerUiEl = document.getElementById('powerUi');
+const powerFillEl = document.getElementById('powerFill');
+const foulBannerEl = document.getElementById('foulBanner');
+
+canvas.addEventListener('pointerdown', onPointerDown);
+window.addEventListener('pointermove', onPointerMove);
+window.addEventListener('pointerup', onPointerUp);
+window.addEventListener('pointercancel', onPointerUp);
+
+startBtn.addEventListener('click', () => { startOverlay.classList.add('hidden'); newGame(); });
+restartBtn.addEventListener('click', () => { endOverlay.classList.add('hidden'); newGame(); });
+playAgainBtn.addEventListener('click', () => { endOverlay.classList.add('hidden'); newGame(); });
+
+// initial position (racked table) just for display behind the start overlay
+setupBalls();
+updateHud();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
